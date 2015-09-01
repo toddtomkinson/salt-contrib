@@ -1,0 +1,26 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+  config.vm.box = "boxcutter/centos71"
+
+  config.vm.hostname = "salt"
+
+  config.vm.provision "shell", inline: <<-SHELL
+    wget -O install_salt.sh https://bootstrap.saltstack.com
+    sudo sh install_salt.sh -M git v2015.5.5
+    sudo yum -y install python-bottle
+    cd /vagrant
+    python rest.py 2>&1 1>/dev/null &
+    sudo mkdir -p /srv/{salt,pillar}
+    sudo printf '"base": {"*": ["proxytest"]}' > /srv/pillar/top.sls
+    sudo printf 'proxy: {rest_sample: {proxytype: "rest_sample", proxymodule: "rest_sample", url: "http://localhost:8080/"}}' > /srv/pillar/proxytest.sls
+    sudo salt-key -A -y
+    sudo systemctl restart salt-minion
+    sleep 2
+    sudo salt-key -A -y
+    sleep 10
+    sudo salt "*" test.ping
+    sudo salt "rest_sample*" state.highstate
+  SHELL
+end
